@@ -1,8 +1,108 @@
 <html>
   <head>
-    
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.min.js'></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.9/d3.min.js"></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.10.6/moment.min.js'></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.4.0/fullcalendar.min.js'></script>
+    <script type="text/javascript" src="/scheduler.js"></script>
+    <script type="text/javascript">
+      var data = [{
+                    name: "M1",
+                    events: [{start : '2015-11-11', end: '2015-11-12'},
+                     {start: '2015-11-14', end: '2015-11-17'},
+                     {start: '2015-11-19', end: '2015-11-23'}]},
+                  {name: "M2"},
+                  {name: "M2"},
+                  {name: "M3"},
+                  {name: "M4"}];
+
+      var width = 1000;
+      var height = 70;
+      var titleWidth = 100;
+
+      $(document).ready(function() {
+        var svg = d3.select('.scheduler-container').selectAll('svg')
+        .data(data)
+        .enter().append('svg');
+
+        var title = svg.append('g')
+          .attr('class', 'chart-title')
+          .attr('width', titleWidth + 'px')
+          .attr('height', '30px')
+          .attr('transform', 'translate(0,' + (height-25) + ')');
+
+        title.append('text')
+          .attr('class', 'title')
+          .style('fill', 'black')
+          .text(function(d) {
+            return d.name;
+          });
+
+          var timeFormat = d3.time.format('%Y-%m-%d');
+
+          var xTimeScale = d3.time.scale()
+            .domain([timeFormat.parse('2015-11-10'), timeFormat.parse('2015-11-21')])
+            .range([0,width-titleWidth])
+            .clamp(true);
+
+          var xLinScale = d3.scale.linear()
+            .domain([0, xTimeScale.domain()[1].getTime() - xTimeScale.domain()[0].getTime()])
+            .range([0,width-titleWidth])
+            .clamp(true);
+
+          console.log(xTimeScale.domain()[1].getTime() - xTimeScale.domain()[0].getTime())
+
+          var xAxis = d3.svg.axis()
+            .scale(xTimeScale)
+            .orient('bottom')
+            .ticks(10);
+
+          var chart = svg.append('g')
+          .attr('transform', 'translate(35,' + (height - 40) + ')');
+
+          chart.selectAll('rect').
+            data(function(d) {
+              console.log(d);
+              return d.events || [];
+            }).enter()
+            .append('rect')
+            .attr('width', function(d) {
+              return xLinScale(Date.parse(d.end) - Date.parse(d.start));
+            })
+            .attr('x', function (d) { return xTimeScale(timeFormat.parse(d.start))})
+            .attr('height', '20px')
+            .attr('fill', 'red');
+
+            chart.append('g')
+              .attr('transform', 'translate(0,20)')
+              .attr('class', 'axis')
+              .call(xAxis);
+
+          svg.append('g')
+            .attr('transform', 'translate(700,' + (height-60) + ')')
+            .append('rect')
+            .attr('width', '40px')
+            .attr('height', '15px')
+            .attr('class', 'next-button')
+            .on('click', function() {
+              var timeStart = xTimeScale.domain()[0];
+              var timeEnd = xTimeScale.domain()[1];
+              xTimeScale.domain([timeStart.setTime(timeStart.getTime() + (1000*60*60*24)),
+                                  timeEnd.setTime(timeEnd.getTime() + (1000*60*60*24))])
+              timeStart.setTime(timeStart.getTime() + (1000*60*60*24));
+              console.log(timeStart);
+              console.log(timeEnd);
+              chart.selectAll('g.axis')
+                .call(xAxis);
+            })
+
+      })
+    </script>
+    <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.4.0/fullcalendar.min.css' />
+    <link rel="stylesheet" type="text/css" media="print" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.4.0/fullcalendar.print.css"/>
+    <link rel="stylesheet" type="text/css" href="/index.css">
   </head>
   <body>
-    Hello
+    <div class='scheduler-container'></div>
   </body>
 </html>
