@@ -4,105 +4,145 @@
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.9/d3.min.js"></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.10.6/moment.min.js'></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.4.0/fullcalendar.min.js'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.0.4/handlebars.min.js"></script>
     <script type="text/javascript" src="/scheduler.js"></script>
+    <script type="text/javascript" src="/bootstrap-datepicker.js"></script>
     <script type="text/javascript">
-      var data = [{
-                    name: "M1",
-                    events: [{start : '2015-11-11', end: '2015-11-12'},
-                     {start: '2015-11-14', end: '2015-11-17'},
-                     {start: '2015-11-19', end: '2015-11-23'}]},
-                  {name: "M2"},
-                  {name: "M2"},
-                  {name: "M3"},
-                  {name: "M4"}];
-
-      var width = 1000;
-      var height = 70;
-      var titleWidth = 100;
-
       $(document).ready(function() {
-        var svg = d3.select('.scheduler-container').selectAll('svg')
-        .data(data)
-        .enter().append('svg');
+        Handlebars.registerHelper('moment-toString', function(moment) {
+          return moment.format('YYYY-MM-DD hh:mm');
+        });
+        $('#calendar').fullCalendar({
+          header: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'month,agendaWeek,agendaDay'
+          },
+        eventLimit:true,
+        defaultView: 'month',
+        eventClick: function(event, jsEvent, view) {
+          $('.event-tooltip').remove();
+          var source = $('#event-tooltip-template').html();
+          var template = Handlebars.compile(source);
+          $('body').append(template(event));
+          $('.event-tooltip').css({top:jsEvent.pageY, left:jsEvent.pageX});
+          jsEvent.preventDefault();
+          console.log(event.start); 
+        },
+        });
 
-        var title = svg.append('g')
-          .attr('class', 'chart-title')
-          .attr('width', titleWidth + 'px')
-          .attr('height', '30px')
-          .attr('transform', 'translate(0,' + (height-25) + ')');
+        $('.schedule-event').on('click', function() {
+          $('.cover.is-hidden').removeClass('is-hidden');
+        })
+        $('.cancel-add').on('click', function() {
+          $('.cover').addClass('is-hidden');
+        })
 
-        title.append('text')
-          .attr('class', 'title')
-          .style('fill', 'black')
-          .text(function(d) {
-            return d.name;
-          });
+        $(document).on('click', '.event-tooltip a', function(event) {
+          var machineId = $('select.machine-list').find(':selected').val();
+          var start = moment.utc($(this).data('start')).format('YYYY-MM-DD hh:mm');
+          Scheduler.removeEvent(machineId, start);
+          $('.event-tooltip').remove();
+          $('#calendar').fullCalendar('removeEvents');
+          $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(machineId));
+        })
 
-          var timeFormat = d3.time.format('%Y-%m-%d');
+        $(document).on('click', function(event) {
+          if(!$(event.target).closest('.event-tooltip').length && !event.isDefaultPrevented()) {
+            $('.event-tooltip').remove();
+          }
+        })
+        var machines = Scheduler.getMachines();
+        for(var i = 0; i < machines.length; i++) {
+          $('select.machine-list').append('<option value=' + machines[i] + '>' + machines[i] + '</option>');
+        }
+        Scheduler.locations.forEach(function(location) {
+          $('.location-list').append('<option value=' + location + '>' + location + '</option>')
+        });
+        Scheduler.types.forEach(function(type) {
+          $('.type-list').append('<option value=' + type + '>' + type + '</option>');
+        });
+        $('select.machine-list').on('change', function(e) {
+          $('#calendar').fullCalendar('removeEvents')
+          $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(this.value));
+        })
+        $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule($('select.machine-list').find(':selected').val()));
 
-          var xTimeScale = d3.time.scale()
-            .domain([timeFormat.parse('2015-11-10'), timeFormat.parse('2015-11-21')])
-            .range([0,width-titleWidth])
-            .clamp(true);
+        $('.start-date').datepicker({format: 'yyyy-mm-dd'});
+        $('.end-date').datepicker({format: 'yyyy-mm-dd'});
 
-          var xLinScale = d3.scale.linear()
-            .domain([0, xTimeScale.domain()[1].getTime() - xTimeScale.domain()[0].getTime()])
-            .range([0,width-titleWidth])
-            .clamp(true);
-
-          console.log(xTimeScale.domain()[1].getTime() - xTimeScale.domain()[0].getTime())
-
-          var xAxis = d3.svg.axis()
-            .scale(xTimeScale)
-            .orient('bottom')
-            .ticks(10);
-
-          var chart = svg.append('g')
-          .attr('transform', 'translate(35,' + (height - 40) + ')');
-
-          chart.selectAll('rect').
-            data(function(d) {
-              console.log(d);
-              return d.events || [];
-            }).enter()
-            .append('rect')
-            .attr('width', function(d) {
-              return xLinScale(Date.parse(d.end) - Date.parse(d.start));
-            })
-            .attr('x', function (d) { return xTimeScale(timeFormat.parse(d.start))})
-            .attr('height', '20px')
-            .attr('fill', 'red');
-
-            chart.append('g')
-              .attr('transform', 'translate(0,20)')
-              .attr('class', 'axis')
-              .call(xAxis);
-
-          svg.append('g')
-            .attr('transform', 'translate(700,' + (height-60) + ')')
-            .append('rect')
-            .attr('width', '40px')
-            .attr('height', '15px')
-            .attr('class', 'next-button')
-            .on('click', function() {
-              var timeStart = xTimeScale.domain()[0];
-              var timeEnd = xTimeScale.domain()[1];
-              xTimeScale.domain([timeStart.setTime(timeStart.getTime() + (1000*60*60*24)),
-                                  timeEnd.setTime(timeEnd.getTime() + (1000*60*60*24))])
-              timeStart.setTime(timeStart.getTime() + (1000*60*60*24));
-              console.log(timeStart);
-              console.log(timeEnd);
-              chart.selectAll('g.axis')
-                .call(xAxis);
-            })
-
-      })
+        $('.add-event').on('click', function() {
+          var machineId = $('select.machine-list').find(':selected').val();
+          var startDate = $('.start-date').val() + ' ' + $('.start-time').val() + ':00';
+          var endDate = $('.end-date').val()  + ' ' + $('.end-time').val() + ':00';
+          if (Scheduler.checkOverlap(machineId, startDate, endDate)) {
+            alert('Can not have overlapping events');
+          } else {
+            var location = $('.location-list').find(':selected').val();
+            var type = $('.type-list').find(':selected').val();
+            Scheduler.addEvent(machineId, startDate, endDate, location, type);
+            $('#calendar').fullCalendar('removeEvents');
+            $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(machineId));
+            $('.cover').addClass('is-hidden');
+          }
+        })
+      });
     </script>
     <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.4.0/fullcalendar.min.css' />
     <link rel="stylesheet" type="text/css" media="print" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.4.0/fullcalendar.print.css"/>
     <link rel="stylesheet" type="text/css" href="/index.css">
+    <link rel="stylesheet" type="text/css" href="/datepicker.css">
+
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <script id="event-tooltip-template" type="text/x-handlebars-template">
+      <div class="event-tooltip">
+        <label class="tooltip-title">{{title}}</label>
+        <div class="tooltip-row">
+          <label>Start:</label>
+          <label>{{moment-toString start}}</label>
+        </div>
+        <div class="tooltip-row">
+          <label>End:</label>
+          <label>{{moment-toString end}}</label>
+        </div>
+        <div class="tooltip-row">
+          <label>Location:</label>
+          <label>{{location}}</label>
+        </div>
+        <div class="tooltip-row">
+          <a data-start={{start}}>Delete Event</a>
+        </div>
+      </div>
+    </script>
   </head>
   <body>
-    <div class='scheduler-container'></div>
+    <nav class="navbar navbar-default">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <div class="navbar-logo"></div>
+        </div>
+        <form class="form-inline" role="form">
+          <select class="machine-list form-control"></select>
+          <button type="button" class="btn btn-primary schedule-event">Schedule Event</button>
+        </form>
+      </div>
+    </nav>
+    <div class="calendar-container">
+      <div id="calendar"></div>
+    </div>
+    <div class="cover is-hidden">
+      <div class="add-event-popup">
+        <h2>Add Event</h2>
+        <input type="text" class="start-date"/>
+        <input type="number" value="12" class="start-time"/>
+        <input class="end-date"/>
+        <input type="number" value="13" class="end-time"/>
+        <select class="type-list"></select>
+        <select class="location-list"></select>
+        <button class="add-event">Add Event</button>
+        <button class="cancel-add">Cancel</button>
+      </div>
+    </div>
   </body>
 </html>
