@@ -5,15 +5,14 @@ var Scheduler = (function() {
   for (var i = 1; i < 5; i++) {
     machines['MIN' + i] = {
       name: 'MIN' + i,
-      events: []
+      events: [],
+      currId: 0,
     }
   }
-  machines['MIN1'].events =  [{start : '2015-11-11', end: '2015-11-12'},
-                     {start: '2015-11-14', end: '2015-11-17'},
-                     {start: '2015-11-19', end: '2015-11-23'}];
   function addEvent(machineId, start, end, location, type) {
     var machine = machines[machineId];
     var newEvent = {
+      id: ++machine.currId,
       start: start, 
       end: end,
       location: location,
@@ -41,15 +40,39 @@ var Scheduler = (function() {
     return machines[machineId].events;
   }
 
-  function removeEvent(machineId, start) {
+  function removeEvent(machineId, id) {
     var machine = machines[machineId];
     for (var i = 0; i < machine.events.length; i++) {
-      if(machine.events[i].start === start) {
+      if(machine.events[i].id === id) {
         machine.events.splice(i,1);
         return;
       }
     }
     console.error('no event found')
+  }
+
+  function updateEvent(machineId, eventId, start, end, location, type) {
+    var event = machines[machineId].events.filter(function(event) {
+      if (event.id === eventId) {
+        return true;
+      }
+      return false;
+    })[0];
+    console.log(event);
+    event.start = start;
+    event.end = end;
+    event.location = location;
+    event.type = type;
+    event.title = type + ' at ' + location;
+  }
+
+  function getMachineEvent(machineId, eventId) {
+    return getMachineSchedule(machineId).filter(function(event) {
+      if (event.id === eventId) {
+        return true;
+      }
+      return false;
+    })[0];
   }
 
   return {
@@ -58,6 +81,8 @@ var Scheduler = (function() {
     getMachines: getMachines,
     getMachineSchedule: getMachineSchedule,
     removeEvent: removeEvent,
+    updateEvent: updateEvent,
+    getMachineEvent: getMachineEvent,
     locations: locations,
     types: types
   }

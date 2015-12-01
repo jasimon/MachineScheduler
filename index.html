@@ -7,10 +7,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.0.4/handlebars.min.js"></script>
     <script type="text/javascript" src="/scheduler.js"></script>
     <script type="text/javascript" src="/bootstrap-datepicker.js"></script>
+    <script type="text/javascript" src="/bootstrap-timepicker.min.js"></script>
     <script type="text/javascript">
       $(document).ready(function() {
+        var dateFormat = 'YYYY-MM-DD';
+        var timeFormat = 'HH:mm';
+        var dateTimeFormat = dateFormat + ' ' + timeFormat;
+
         Handlebars.registerHelper('moment-toString', function(moment) {
-          return moment.format('YYYY-MM-DD hh:mm');
+          return moment.format(dateTimeFormat);
         });
         $('#calendar').fullCalendar({
           header: {
@@ -32,19 +37,27 @@
         });
 
         $('.schedule-event').on('click', function() {
+          populatePopup();
           $('.cover.is-hidden').removeClass('is-hidden');
         })
         $('.cancel-add').on('click', function() {
           $('.cover').addClass('is-hidden');
         })
 
-        $(document).on('click', '.event-tooltip a', function(event) {
+        $(document).on('click', '.event-tooltip a.delete', function() {
           var machineId = $('select.machine-list').find(':selected').val();
-          var start = moment.utc($(this).data('start')).format('YYYY-MM-DD hh:mm');
-          Scheduler.removeEvent(machineId, start);
+          var eventId = $(this).data('event-id');
+          Scheduler.removeEvent(machineId, eventId);
           $('.event-tooltip').remove();
           $('#calendar').fullCalendar('removeEvents');
-          $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(machineId));
+          $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(machineId)); 
+        });
+
+        $(document).on('click', '.event-tooltip a.update', function(event) {
+          var machineId = $('select.machine-list').find(':selected').val();
+          var eventId = $(this).data('event-id');
+          populatePopup(Scheduler.getMachineEvent(machineId, eventId));
+          $('.cover.is-hidden').removeClass('is-hidden');
         })
 
         $(document).on('click', function(event) {
@@ -52,10 +65,9 @@
             $('.event-tooltip').remove();
           }
         })
-        var machines = Scheduler.getMachines();
-        for(var i = 0; i < machines.length; i++) {
-          $('select.machine-list').append('<option value=' + machines[i] + '>' + machines[i] + '</option>');
-        }
+        Scheduler.getMachines().forEach(function(machine) {
+          $('select.machine-list').append('<option value=' + machine + '>' + machine + '</option>');
+        });
         Scheduler.locations.forEach(function(location) {
           $('.location-list').append('<option value=' + location + '>' + location + '</option>')
         });
@@ -63,38 +75,105 @@
           $('.type-list').append('<option value=' + type + '>' + type + '</option>');
         });
         $('select.machine-list').on('change', function(e) {
-          $('#calendar').fullCalendar('removeEvents')
-          $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(this.value));
+          refreshCalendar(this.value);
         })
         $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule($('select.machine-list').find(':selected').val()));
 
-        $('.start-date').datepicker({format: 'yyyy-mm-dd'});
-        $('.end-date').datepicker({format: 'yyyy-mm-dd'});
+        $('.start-date').datepicker({format: dateFormat.toLowerCase()}).on('changeDate', function(e) {
+          if (e.target.value > $('.end-date').val()) {
+            alert('Can not have start greater than end.');
+            $(e.target).datepicker('setValue', $('.end-date').val());
+          }
+        });
+        $('.end-date').datepicker({format: dateFormat.toLowerCase()}).on('changeDate', function(e) {
+          if (e.target.value < $('.start-date').val()) {
+            alert('Can not have end less than start.');
+            $(e.target).datepicker('setValue', $('.start-date').val());
+          }
+        });
+        $('.start-time').timepicker({showMeridian: false, template:false}).on('changeTime.timepicker', function(e) {
+          if($('.start-date').val() === $('.end-date').val() && zeroPadTimeString(e.time.value) > zeroPadTimeString($('.end-time').val())) {
+            alert('Start time can not be greater than end time');
+            $(this).timepicker('setTime', $('.end-time').val());
+          }
+        });
+        $('.end-time').timepicker({showMeridian: false, template:false}).on('changeTime.timepicker', function(e) {
+          if($('.start-date').val() === $('.end-date').val() && zeroPadTimeString(e.time.value) < zeroPadTimeString($('.start-time').val())) {
+            alert('End time can not be less than start time');
+            $(this).timepicker('setTime', $('.start-time').val());
+          }
+        });
 
         $('.add-event').on('click', function() {
           var machineId = $('select.machine-list').find(':selected').val();
-          var startDate = $('.start-date').val() + ' ' + $('.start-time').val() + ':00';
-          var endDate = $('.end-date').val()  + ' ' + $('.end-time').val() + ':00';
+          var startDate = $('.start-date').val() + ' ' + zeroPadTimeString($('.start-time').val());
+          var endDate = $('.end-date').val()  + ' ' + zeroPadTimeString($('.end-time').val());
           if (Scheduler.checkOverlap(machineId, startDate, endDate)) {
             alert('Can not have overlapping events');
           } else {
             var location = $('.location-list').find(':selected').val();
             var type = $('.type-list').find(':selected').val();
             Scheduler.addEvent(machineId, startDate, endDate, location, type);
-            $('#calendar').fullCalendar('removeEvents');
-            $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(machineId));
+            refreshCalendar(machineId);
             $('.cover').addClass('is-hidden');
           }
-        })
+        });
+
+        $('.update-event').on('click', function() {
+          var machineId = $('select.machine-list').find(':selected').val();
+          var eventId = $(this).data('event-id');
+          console.log(eventId);
+          var startDate = $('.start-date').val() + ' ' + zeroPadTimeString($('.start-time').val());
+          var endDate = $('.end-date').val()  + ' ' + zeroPadTimeString($('.end-time').val());
+          var location = $('.location-list').find(':selected').val();
+          var type = $('.type-list').find(':selected').val();
+          Scheduler.updateEvent(machineId, eventId, startDate, endDate, location, type);
+          refreshCalendar(machineId);
+          $('.cover').addClass('is-hidden');
+        });
+        function refreshCalendar(machineId) {
+          $('#calendar').fullCalendar('removeEvents')
+          $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(machineId));
+        }
+        function populatePopup(event) {
+          var container = $('.add-event-popup');
+          //hack so form doesn't cause alerts when changing values
+          container.find('.start-date').datepicker('setValue', moment(0).format(dateFormat));
+          if (event) {
+            container.find('h2').text('Update Event');
+            container.find('.start-time').timepicker('setTime', event.start.split(' ')[1]);
+            container.find('.end-date').datepicker('setValue', event.end.split(' ')[0]);
+            container.find('.end-time').timepicker('setTime', event.end.split(' ')[1]);
+            container.find('.start-date').datepicker('setValue', event.start.split(' ')[0]);
+            container.find('.type-list').val(event.type);
+            container.find('.location-list').val(event.location);
+            container.find('button.add-event').hide();
+            container.find('button.update-event').data('event-id', event.id).show();
+          } else {
+            container.find('h2').text('Add Event');
+            container.find('.start-time').timepicker('setTime', moment().add(1, 'hours').startOf('hour').format(timeFormat));
+            container.find('.end-date').datepicker('setValue', moment().add(2, 'hours').format(dateFormat));
+            container.find('.end-time').timepicker('setTime', moment().add(2,'hours').startOf('hour').format(timeFormat));
+            container.find('.start-date').datepicker('setValue', moment().add(1, 'hours').format(dateFormat));
+            container.find('.type-list')[0].selectedIndex = 0;
+            container.find('.location-list')[0].selectedIndex = 0;
+            container.find('button.add-event').show();
+            container.find('button.update-event').hide();
+          }
+        }
+        function zeroPadTimeString(str) {
+          return Array(6-str.length).join('0') + str;
+        }
       });
     </script>
     <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.4.0/fullcalendar.min.css' />
     <link rel="stylesheet" type="text/css" media="print" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.4.0/fullcalendar.print.css"/>
-    <link rel="stylesheet" type="text/css" href="/index.css">
     <link rel="stylesheet" type="text/css" href="/datepicker.css">
+    <link rel="stylesheet" type="text/css" href="/bootstrap-timepicker.min.css">
 
     <!-- Latest compiled and minified CSS -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="/index.css">
     <script id="event-tooltip-template" type="text/x-handlebars-template">
       <div class="event-tooltip">
         <label class="tooltip-title">{{title}}</label>
@@ -104,28 +183,38 @@
         </div>
         <div class="tooltip-row">
           <label>End:</label>
-          <label>{{moment-toString end}}</label>
+          <label>
+          <!-- because fullcalendar sets end to null on zero length events -->
+            {{#if end}} 
+              {{moment-toString end}}
+            {{else}}
+              {{moment-toString start}}
+            {{/if}}
+          </label>
         </div>
         <div class="tooltip-row">
           <label>Location:</label>
           <label>{{location}}</label>
         </div>
         <div class="tooltip-row">
-          <a data-start={{start}}>Delete Event</a>
+          <a class="update" data-event-id={{id}}>Update Event</a>
+          <a class="delete" data-event-id={{id}}>Delete Event</a>
         </div>
       </div>
     </script>
   </head>
   <body>
-    <nav class="navbar navbar-default">
+    <nav class="navbar navbar-default navbar-fixed-top">
       <div class="container-fluid">
         <div class="navbar-header">
           <div class="navbar-logo"></div>
         </div>
-        <form class="form-inline" role="form">
+        <div class="form-inline" role="form">
+          <span>Machine Scheduler</span>
+          <span class="separator"></span>
           <select class="machine-list form-control"></select>
           <button type="button" class="btn btn-primary schedule-event">Schedule Event</button>
-        </form>
+        </div>
       </div>
     </nav>
     <div class="calendar-container">
@@ -133,15 +222,30 @@
     </div>
     <div class="cover is-hidden">
       <div class="add-event-popup">
-        <h2>Add Event</h2>
-        <input type="text" class="start-date"/>
-        <input type="number" value="12" class="start-time"/>
-        <input class="end-date"/>
-        <input type="number" value="13" class="end-time"/>
-        <select class="type-list"></select>
-        <select class="location-list"></select>
-        <button class="add-event">Add Event</button>
-        <button class="cancel-add">Cancel</button>
+        <h2></h2>
+        <div class='form-group'>
+          <label>Start</label>
+          <input type="text" class="start-date form-control">
+          <input type="text" value="12" class="start-time form-control short-input"/>
+        </div>
+        <div class="form-group">
+          <label>End</label>
+          <input type="text" class="end-date form-control"/>
+          <input type="text" value="13" class="end-time form-control short-input"/>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select class="type-list form-control"></select>
+        </div>
+        <div class="form-group">
+          <label>Location</label>
+          <select class="location-list form-control"></select>
+        </div>
+        <div class="form-group">
+          <button class="add-event btn btn-primary">Add Event</button>
+          <button class="update-event btn btn-primary">Update Event</button>
+          <button class="cancel-add btn btn-default">Cancel</button>
+        </div>
       </div>
     </div>
   </body>
