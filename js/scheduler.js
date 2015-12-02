@@ -2,13 +2,14 @@ var Scheduler = (function() {
   var machines = {};
   var locations = ["KHQ", "NCI", "SIMON", "Maintenance"];
   var types = ["Patrolling", "On-site Maintenance", "Off-site Maintenance", "Demonstration", "Transportation"];
-  for (var i = 1; i < 5; i++) {
+  for (var i = 1; i <= 15; i++) {
     machines['MIN' + i] = {
       name: 'MIN' + i,
       events: [],
       currId: 0,
     }
   }
+
   function addEvent(machineId, start, end, location, type) {
     var machine = machines[machineId];
     var newEvent = {
@@ -58,7 +59,6 @@ var Scheduler = (function() {
       }
       return false;
     })[0];
-    console.log(event);
     event.start = start;
     event.end = end;
     event.location = location;

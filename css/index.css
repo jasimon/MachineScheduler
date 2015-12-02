@@ -35,13 +35,35 @@ body {
 
 .event-tooltip {
   position:absolute;
-  border: 1px solid black;
-  padding: 10px;
+  border: 1px solid #e7e7e7;
+  border-radius: 3px;
+  padding: 15px;
   z-index: 1;
+  background-color: #ffffff;
+  text-align: center;
 }
 
 .event-tooltip a {
   cursor:pointer;
+}
+
+.event-tooltip .tooltip-title {
+  font-weight: bold;
+  font-size:16px;
+  margin-bottom: 7px;
+}
+
+.event-tooltip label {
+  font-weight: 500;
+}
+
+.event-tooltip .tooltip-row {
+  text-align: left;
+}
+
+.event-tooltip .fixed-label {
+  width:50px;
+  text-align: right;
 }
 
 .navbar-logo {
@@ -73,12 +95,16 @@ body {
   vertical-align:middle;
 }
 
+.navbar.navbar-fixed-top {
+  z-index: 10;
+}
+
 .cover {
   width:100%;
   height:100%;
   background-color: rgba(50,50,50,0.5);
   position:fixed;
-  z-index:4;
+  z-index:11; /** to go over bootstrap header **/
   top:0;
   left:0;
 }
@@ -88,11 +114,12 @@ body {
 }
 
 .add-event-popup {
-  background-color: #ffffff;
+  background-color: #f7f7f7;
   width:350px;
   margin:100px auto;
   padding:0px 20px;
   overflow:hidden;
+  border-radius: 3px;
 }
 
 .add-event-popup input {
@@ -121,4 +148,9 @@ body {
 
 .add-event-popup button {
   margin: 0px 20px;
+}
+
+.add-event-popup .button-group {
+  margin-bottom:15px;
+  text-align: center;
 }

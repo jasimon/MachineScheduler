@@ -10,13 +10,18 @@
     <script type="text/javascript" src="/bootstrap-timepicker.min.js"></script>
     <script type="text/javascript">
       $(document).ready(function() {
+        //Various formats used for parsing/displaying dates
         var dateFormat = 'YYYY-MM-DD';
         var timeFormat = 'HH:mm';
         var dateTimeFormat = dateFormat + ' ' + timeFormat;
+        var longDateTimeFormat = 'ddd MMM Do YYYY h:mmA';
 
+        //Helper for handlebars, too small for its own file
         Handlebars.registerHelper('moment-toString', function(moment) {
-          return moment.format(dateTimeFormat);
+          return moment.format(longDateTimeFormat);
         });
+
+        //Initialize the calendar
         $('#calendar').fullCalendar({
           header: {
             left: 'prev,next today',
@@ -32,10 +37,10 @@
           $('body').append(template(event));
           $('.event-tooltip').css({top:jsEvent.pageY, left:jsEvent.pageX});
           jsEvent.preventDefault();
-          console.log(event.start); 
         },
         });
 
+        //Show/hide the add event popup
         $('.schedule-event').on('click', function() {
           populatePopup();
           $('.cover.is-hidden').removeClass('is-hidden');
@@ -44,6 +49,7 @@
           $('.cover').addClass('is-hidden');
         })
 
+        //Events for tooltip anchors, need to be delegated since the html is generated dynamically
         $(document).on('click', '.event-tooltip a.delete', function() {
           var machineId = $('select.machine-list').find(':selected').val();
           var eventId = $(this).data('event-id');
@@ -52,19 +58,21 @@
           $('#calendar').fullCalendar('removeEvents');
           $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(machineId)); 
         });
-
         $(document).on('click', '.event-tooltip a.update', function(event) {
           var machineId = $('select.machine-list').find(':selected').val();
           var eventId = $(this).data('event-id');
           populatePopup(Scheduler.getMachineEvent(machineId, eventId));
           $('.cover.is-hidden').removeClass('is-hidden');
-        })
+        });
 
+        //To determine if the tooltip was clicked outside and should be closed
         $(document).on('click', function(event) {
           if(!$(event.target).closest('.event-tooltip').length && !event.isDefaultPrevented()) {
             $('.event-tooltip').remove();
           }
-        })
+        });
+
+        //Initialize selects
         Scheduler.getMachines().forEach(function(machine) {
           $('select.machine-list').append('<option value=' + machine + '>' + machine + '</option>');
         });
@@ -76,9 +84,9 @@
         });
         $('select.machine-list').on('change', function(e) {
           refreshCalendar(this.value);
-        })
-        $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule($('select.machine-list').find(':selected').val()));
+        });
 
+        //Initialize date and time pickers
         $('.start-date').datepicker({format: dateFormat.toLowerCase()}).on('changeDate', function(e) {
           if (e.target.value > $('.end-date').val()) {
             alert('Can not have start greater than end.');
@@ -104,6 +112,7 @@
           }
         });
 
+        //Add new event from popup
         $('.add-event').on('click', function() {
           var machineId = $('select.machine-list').find(':selected').val();
           var startDate = $('.start-date').val() + ' ' + zeroPadTimeString($('.start-time').val());
@@ -113,24 +122,45 @@
           } else {
             var location = $('.location-list').find(':selected').val();
             var type = $('.type-list').find(':selected').val();
+            if (type === "Patrolling") {
+              var startM = moment(startDate, dateTimeFormat);
+              var endM = moment(endDate, dateTimeFormat);
+              if (endM.valueOf() - startM.valueOf() > 4*60*60*1000) {
+                alert('Can not patrol for more than 4 hours');
+                return;
+              }
+            }
             Scheduler.addEvent(machineId, startDate, endDate, location, type);
             refreshCalendar(machineId);
             $('.cover').addClass('is-hidden');
           }
         });
 
+        //Update event from popup
         $('.update-event').on('click', function() {
           var machineId = $('select.machine-list').find(':selected').val();
           var eventId = $(this).data('event-id');
-          console.log(eventId);
           var startDate = $('.start-date').val() + ' ' + zeroPadTimeString($('.start-time').val());
           var endDate = $('.end-date').val()  + ' ' + zeroPadTimeString($('.end-time').val());
           var location = $('.location-list').find(':selected').val();
           var type = $('.type-list').find(':selected').val();
+          if (type === "Patrolling") {
+            var startM = moment(startDate, dateTimeFormat);
+            var endM = moment(endDate, dateTimeFormat);
+            if (endM.valueOf() - startM.valueOf() > 4*60*60*1000) {
+              alert('Can not patrol for more than 4 hours');
+              return;
+            }
+          }
           Scheduler.updateEvent(machineId, eventId, startDate, endDate, location, type);
           refreshCalendar(machineId);
           $('.cover').addClass('is-hidden');
         });
+
+        //Initialze calendar to show first machine
+        $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule($('select.machine-list').find(':selected').val()));
+
+        //helper functions
         function refreshCalendar(machineId) {
           $('#calendar').fullCalendar('removeEvents')
           $('#calendar').fullCalendar('addEventSource', Scheduler.getMachineSchedule(machineId));
@@ -178,11 +208,11 @@
       <div class="event-tooltip">
         <label class="tooltip-title">{{title}}</label>
         <div class="tooltip-row">
-          <label>Start:</label>
+          <label class='fixed-label'>Start:</label>
           <label>{{moment-toString start}}</label>
         </div>
         <div class="tooltip-row">
-          <label>End:</label>
+          <label class='fixed-label'>End:</label>
           <label>
           <!-- because fullcalendar sets end to null on zero length events -->
             {{#if end}} 
@@ -193,12 +223,8 @@
           </label>
         </div>
         <div class="tooltip-row">
-          <label>Location:</label>
-          <label>{{location}}</label>
-        </div>
-        <div class="tooltip-row">
-          <a class="update" data-event-id={{id}}>Update Event</a>
-          <a class="delete" data-event-id={{id}}>Delete Event</a>
+          <a class="update pull-left" data-event-id={{id}}>Update Event</a>
+          <a class="delete pull-right" data-event-id={{id}}>Delete Event</a>
         </div>
       </div>
     </script>
@@ -241,7 +267,7 @@
           <label>Location</label>
           <select class="location-list form-control"></select>
         </div>
-        <div class="form-group">
+        <div class="button-group">
           <button class="add-event btn btn-primary">Add Event</button>
           <button class="update-event btn btn-primary">Update Event</button>
           <button class="cancel-add btn btn-default">Cancel</button>
